@@ -24,6 +24,8 @@ import { Constants, Location, Permissions } from "expo";
 import { causas } from "../data/causas";
 import { agravantes } from "../data/agravantes";
 import { locaisFato } from "../data/locais_fato";
+import { situacoesVitima } from "../data/situacoes_vitima";
+
 import DialogInput from "../components/DialogInput";
 import colors from "../assets/colors";
 import Touchable from "../components/Touchable";
@@ -513,6 +515,27 @@ export default class OcorrenciaScreen extends React.Component {
               }
               buttons={buttons}
             />
+          </View>
+          <Text style={[styles.label, styles.center]}> Situação </Text>
+          <View>
+            <Picker
+              selectedValue={
+                this.state.editingVitima &&
+                this.state.editingVitima.situacao_vitima_id
+              }
+              onValueChange={(itemValue, itemIndex) =>
+                this.setState({
+                  editingVitima: {
+                    ...this.state.editingVitima,
+                    situacao_vitima_id: itemValue || 1
+                  }
+                })
+              }
+            >
+              {situacoesVitima.map(tipo => (
+                <Picker.Item label={tipo.nome} value={tipo.id} key={tipo.id} />
+              ))}
+            </Picker>
           </View>
         </View>
       </ConfirmDialog>
