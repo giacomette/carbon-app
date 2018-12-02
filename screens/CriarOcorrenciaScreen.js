@@ -16,11 +16,14 @@ import {
   StyleSheet,
   Text,
   FlatList,
+  ActivityIndicator,
   Picker,
   View
 } from "react-native";
 import { Constants, Location, Permissions } from "expo";
-
+import { causas } from "../data/causas";
+import { agravantes } from "../data/agravantes";
+import { locaisFato } from "../data/locais_fato";
 import DialogInput from "../components/DialogInput";
 import colors from "../assets/colors";
 import Touchable from "../components/Touchable";
@@ -86,10 +89,12 @@ export default class OcorrenciaScreen extends React.Component {
   };
 
   state = {
+    agravantes: [],
     needToRequestQtdVitimas: false,
     temVitimas: false,
     qtdVitimas: null,
     vitimas: [],
+    saving: null,
     needToRequestQtdVeiculos: false,
     qtdVeiculos: 1,
     veiculos: [{ key: "1" }],
@@ -111,7 +116,61 @@ export default class OcorrenciaScreen extends React.Component {
     this.timeout = setTimeout(() => this._getLocationAsync(), 20000);
   };
 
-  componentWillMount() {
+  save = async () => {
+    try {
+      this.setState({ saving: true });
+
+      const {
+        location,
+        causa_id,
+        local_fato_id,
+        anexo,
+        vitimas,
+        veiculos
+      } = this.state;
+
+      const data = {
+        latitude:
+          (location && location.coords && location.coords.latitude) || 0,
+        longitude:
+          (location && location.coords && location.coords.longitude) || 0,
+        protocolo: "-1", //removido
+        causa_id: causa_id || 4,
+        local_fato_id: local_fato_id || 1,
+        anexos: anexo ? [anexo] : [],
+        agravantes: ["1", "2", "3"],
+        vitimas: vitimas.map(x => ({ ...x, key: undefined })),
+        veiculos: veiculos
+          .filter(x => x.placa || x.tipo_veiculo_id)
+          .map(x => ({
+            ...x,
+            key: undefined,
+            tipo_veiculo_id: x.tipo_veiculo_id || 1
+          }))
+      };
+      console.log(data);
+      const result = await axios.post("/ocorrencia", data);
+      console.log(result);
+
+      alert("A ocorrencia foi registrada");
+
+      this.props.navigation.goBack();
+    } catch (error) {
+      console.log(error);
+      alert("Tivemos um problma ao registrar sua ocorrência");
+    } finally {
+      this.setState({ saving: false });
+    }
+  };
+
+  componentDidMount() {
+    const { navigation } = this.props;
+    const temVitima = navigation.getParam("temVitimas", false);
+
+    if (temVitima) {
+      this.handleTemVitimas();
+    }
+
     if (Platform.OS === "android" && !Constants.isDevice) {
       this.setState({
         errorMessage:
@@ -168,25 +227,17 @@ export default class OcorrenciaScreen extends React.Component {
   }
 
   uploadNarrativa = async sound => {
-    debugger;
-
     try {
       const formData = new FormData();
-      debugger;
 
       formData.append("anexo", {
         uri: sound.uri, // your file path string
         name: `anexo.${Platform.OS == "ios" ? "caf" : "3gp"}`,
         type: `audio/${Platform.OS == "ios" ? "caf" : "3gp"}`
       });
-      console.log({
-        uri: sound.uri, // your file path string
-        name: `anexo.${Platform.OS == "ios" ? "caf" : "3gp"}`,
-        type: `audio/${Platform.OS == "ios" ? "caf" : "3gp"}`
-      });
 
       const res = await axios.post(`/upload/audio-${Platform.OS}`, formData);
-
+      console.log(res);
       this.setState({
         sendingNarrativa: false,
         anexo: res.url
@@ -556,12 +607,105 @@ export default class OcorrenciaScreen extends React.Component {
     });
   };
 
+  isCheckedAgravante(id) {
+    const { agravantes } = this.state;
+
+    return agravantes.includes(id);
+  }
+  toggleAgravante(id, toggle) {
+    let { agravantes } = this.state;
+
+    if (toggle) {
+      agravantes = agravantes.concat(id);
+    } else {
+      agravantes = agravantes.filter(x => x != id);
+    }
+
+    this.setState({
+      agravantes
+    });
+  }
+  renderAgravantes() {
+    return (
+      <>
+        <Text style={[styles.label]}>Agravantes</Text>
+
+        {agravantes.map(group => (
+          <>
+            <Text style={[styles.label, styles.smallLabel]}>{group.name}</Text>
+            {group.children.map(item => (
+              <CheckBox
+                checked={this.isCheckedAgravante(item.id)}
+                checkedColor={colors.dangerColor}
+                onPress={() =>
+                  this.toggleAgravante(
+                    item.id,
+                    !this.isCheckedAgravante(item.id)
+                  )
+                }
+                title={item.name}
+              />
+            ))}
+          </>
+        ))}
+      </>
+    );
+  }
+
+  renderCausas() {
+    return (
+      <>
+        <Text style={[styles.label]}>Causa do Incidente</Text>
+
+        <View>
+          <Picker
+            selectedValue={this.state.causa_id}
+            onValueChange={(causa_id, itemIndex) =>
+              this.setState({
+                causa_id
+              })
+            }
+          >
+            <Picker.Item label={"Selecione"} value={null} key={0} />
+
+            {causas.map(tipo => (
+              <Picker.Item label={tipo.nome} value={tipo.id} key={tipo.id} />
+            ))}
+          </Picker>
+        </View>
+      </>
+    );
+  }
+
+  renderLocalFato() {
+    return (
+      <>
+        <Text style={[styles.label]}>Local do Fato</Text>
+
+        <View>
+          <Picker
+            selectedValue={this.state.local_fato_id}
+            onValueChange={(local_fato_id, itemIndex) =>
+              this.setState({
+                local_fato_id
+              })
+            }
+          >
+            <Picker.Item label={"Selecione"} value={null} key={0} />
+
+            {locaisFato.map(tipo => (
+              <Picker.Item label={tipo.nome} value={tipo.id} key={tipo.id} />
+            ))}
+          </Picker>
+        </View>
+      </>
+    );
+  }
   render() {
     const { temVitimas, qtdVitimas } = this.state;
 
     return (
       <View style={styles.container}>
-        <Text>{JSON.stringify(this.state.location)}</Text>
         {this._maybeRenderDialogMaisQue6()}
         {this._maybeRenderDialogMaisQue6Veiculos()}
 
@@ -591,14 +735,29 @@ export default class OcorrenciaScreen extends React.Component {
               onClear={() => this.setState({ anexo: null })}
             />
           </View>
-
+          <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
+            {this.renderAgravantes()}
+          </View>
+          <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
+            {this.renderCausas()}
+          </View>
+          <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
+            {this.renderLocalFato()}
+          </View>
           <View style={{ paddingVertical: 42 }}>
             <Button
               icon={{ type: "font-awsome", name: "save" }}
               title="Salvar"
-              loading={this.state.loadingLocation && !this.state.location}
+              onPress={this.save}
+              loading={
+                this.state.loadingLocation &&
+                !this.state.sendingNarrativa &&
+                !this.state.location
+              }
               backgroundColor={
-                this.state.loadingLocation && !this.state.location
+                this.state.loadingLocation &&
+                !this.state.sendingNarrativa &&
+                !this.state.location
                   ? colors.neutralColor
                   : colors.primaryCOlor
               }
@@ -606,6 +765,15 @@ export default class OcorrenciaScreen extends React.Component {
             />
           </View>
         </ScrollView>
+        {this.state.saving ? (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator
+              color="white"
+              style={styles.loading}
+              size="large"
+            />
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -649,6 +817,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     textAlign: "center",
     left: -4
+  },
+  smallLabel: {
+    fontSize: 16,
+    textAlign: "left"
   },
   tileSetContainer: {
     alignItems: "stretch",
@@ -716,6 +888,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     width: 100,
+    alignSelf: "center"
+  },
+  loadingOverlay: {
+    position: "absolute",
+    zIndex: 999,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    left: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    alignContent: "center"
+  },
+  loading: {
     alignSelf: "center"
   },
   navigationFilename: {

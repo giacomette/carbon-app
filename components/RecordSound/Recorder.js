@@ -129,6 +129,7 @@ export default class Recorder extends Component {
         recordStatus: "RECORDING_COMPLETE",
         recordingDuration: status.durationMillis
       });
+
       this.addDebugStatement(`isDoneRecording: ${status.durationMillis}`);
 
       /* if (!this.state.isLoading) {
@@ -244,15 +245,16 @@ export default class Recorder extends Component {
     // now that recording is complete, create and load a new sound object
     // to save to component state so that it can be played back later
     try {
-      const { sound, status } = await this.recording.createNewLoadedSound(
+      const { sound, status } = await this.recording.createNewLoadedSoundAsync(
         null,
         this.onPlaybackStatusUpdate
       );
+
       this.setState(
         {
           soundFileInfo: { ...info, durationMillis: status.durationMillis }
         },
-        () => this.props.onComplete(this.state.soundFileInfo)
+        () => this.onComplete()
       );
 
       this.setState({
@@ -361,16 +363,13 @@ export default class Recorder extends Component {
       try {
         await this.sound.unloadAsync().then(() => {
           this.addDebugStatement("******** sound unloaded ********");
+          this.sound.loadAsync();
           this.props.onComplete(this.state.soundFileInfo);
         });
       } catch (error) {
+        console.log(error);
         this.addDebugStatement(`Error: unloadAsync ${error}`);
       }
-      // clear the status update object if the sound hasn't already been set to null
-      if (this.sound.hasOwnProperty("setOnPlaybackStatusUpdate")) {
-        this.sound.setOnPlaybackStatusUpdate(null);
-      }
-      this.sound = null;
     } else {
       // only get here if the user has never tried to click record or
       // did a reset

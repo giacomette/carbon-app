@@ -5,7 +5,6 @@ import AppNavigator from "./navigation/AppNavigator";
 import axios from "axios";
 
 axios.defaults.baseURL = "http://192.168.129.123:8000/api";
-
 export default class App extends React.Component {
   state = {
     isLoadingComplete: false

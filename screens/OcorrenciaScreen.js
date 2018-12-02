@@ -46,7 +46,13 @@ export default class OcorrenciaScreen extends React.Component {
                 <Text style={styles.tileAccent}>sem Vitimas </Text>
               </View>
             </Touchable>
-            <Touchable>
+            <Touchable
+              onPress={() =>
+                this.props.navigation.navigate("CriarOcorrencia", {
+                  temVitimas: true
+                })
+              }
+            >
               <View style={[styles.tileButton, styles.orangeBackground]}>
                 <Text style={styles.tileTitle}>Acidente</Text>
                 <Text style={styles.tileAccent}>com Vitimas </Text>
@@ -55,7 +61,7 @@ export default class OcorrenciaScreen extends React.Component {
           </View>
         </ScrollView>
 
-        <View style={styles.tabBarInfoContainer}>
+        {/* <View style={styles.tabBarInfoContainer}>
           <Text style={styles.tabBarInfoText}>
             This is a tab bar. You can edit it in:
           </Text>
@@ -67,7 +73,7 @@ export default class OcorrenciaScreen extends React.Component {
               navigation/MainTabNavigator.js
             </MonoText>
           </View>
-        </View>
+        </View> */}
       </View>
     );
   }
@@ -96,12 +102,14 @@ const styles = StyleSheet.create({
   },
   tileButton: {
     margin: 0,
-    alignSelf: "stretch",
+    alignSelf: Platform.OS == "ios" ? "stretch" : "center",
     flexDirection: "column",
     justifyContent: "center",
     backgroundColor: colors.primaryCOlor,
     height: 120,
-    minWidth: "40%",
+    minWidth: Platform.OS == "ios" ? "40%" : 100,
+    margin: Platform.OS == "ios" ? 0 : 10,
+
     flex: 1
   },
   tileTitle: {
