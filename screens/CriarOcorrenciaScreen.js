@@ -1,17 +1,84 @@
 import React from "react";
-import { CheckBox, Icon, ButtonGroup } from "react-native-elements";
+import axios from "axios";
+import {
+  CheckBox,
+  Icon,
+  ButtonGroup,
+  ListItem,
+  FormInput as Input,
+  Button
+} from "react-native-elements";
+import { ConfirmDialog } from "react-native-simple-dialogs";
 import {
   StatusBar,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  FlatList,
+  Picker,
   View
 } from "react-native";
+import { Constants, Location, Permissions } from "expo";
 
+import DialogInput from "../components/DialogInput";
 import colors from "../assets/colors";
 import Touchable from "../components/Touchable";
+import RecordSound from "../components/RecordSound";
+
+function changeSize(src, size) {
+  if (!src) {
+    const rst = [];
+    for (var i = 0; i < size; i++) rst.push({ key: (i + 1).toString() });
+    return rst;
+  }
+  if (src.length < size) {
+    const rst = [...src];
+    for (var i = rst.length; i < size; i++)
+      rst.push({ key: (i + 1).toString() });
+    return rst;
+  }
+
+  return src.filter((_, i) => i < size);
+}
+
+const tiposVeiculos = [
+  {
+    id: 1,
+    nome: "Carro"
+  },
+  {
+    id: 2,
+    nome: "Moto"
+  },
+  {
+    id: 3,
+    nome: "Bicicleta"
+  },
+  {
+    id: 4,
+    nome: "Onibus"
+  },
+  {
+    id: 5,
+    nome: "Caminhão"
+  },
+  {
+    id: 6,
+    nome: "Caminhonete"
+  },
+  {
+    id: 7,
+    nome: "Veiculo agricola"
+  }
+];
+
+const femaleIcon = () => (
+  <Icon name="venus" type="font-awesome" color={colors.femaleColor} />
+);
+const maleIcon = () => (
+  <Icon name="mars" type="font-awesome" color={colors.maleColor} />
+);
 
 export default class OcorrenciaScreen extends React.Component {
   static navigationOptions = {
@@ -19,11 +86,47 @@ export default class OcorrenciaScreen extends React.Component {
   };
 
   state = {
+    needToRequestQtdVitimas: false,
     temVitimas: false,
-    qtdVitimas: null
+    qtdVitimas: null,
+    vitimas: [],
+    needToRequestQtdVeiculos: false,
+    qtdVeiculos: 1,
+    veiculos: [{ key: "1" }],
+    sendingNarrativa: false
   };
 
-  _updateField(name, value) {}
+  _getLocationAsync = async () => {
+    let { status } = await Permissions.askAsync(Permissions.LOCATION);
+    if (status !== "granted") {
+      this.setState({
+        errorMessage: "Permission to access location was denied"
+      });
+    }
+    this.setState({ loadingLocation: true });
+
+    let location = await Location.getCurrentPositionAsync({});
+    this.setState({ location, loadingLocation: false });
+
+    this.timeout = setTimeout(() => this._getLocationAsync(), 20000);
+  };
+
+  componentWillMount() {
+    if (Platform.OS === "android" && !Constants.isDevice) {
+      this.setState({
+        errorMessage:
+          "Oops, this will not work on Sketch in an Android emulator. Try it on your device!"
+      });
+    } else {
+      this._getLocationAsync();
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+    }
+  }
 
   _renderHeader() {
     return (
@@ -50,10 +153,190 @@ export default class OcorrenciaScreen extends React.Component {
     );
   }
 
-  _maybeRenderVitimas() {
-    const { qtdVitimas, temVitimas } = this.state;
+  get indiceVitimas() {
+    const { qtdVitimas } = this.state;
 
-    const buttons = ["1", "2", "3", "4", "5", " Mais "];
+    if (qtdVitimas > 5) return 5;
+    return qtdVitimas - 1;
+  }
+
+  get indiceVeiculos() {
+    const { qtdVeiculos } = this.state;
+
+    if (qtdVeiculos > 5) return 5;
+    return qtdVeiculos - 1;
+  }
+
+  uploadNarrativa = async sound => {
+    debugger;
+
+    try {
+      const formData = new FormData();
+      debugger;
+
+      formData.append("anexo", {
+        uri: sound.uri, // your file path string
+        name: `anexo.${Platform.OS == "ios" ? "caf" : "3gp"}`,
+        type: `audio/${Platform.OS == "ios" ? "caf" : "3gp"}`
+      });
+      console.log({
+        uri: sound.uri, // your file path string
+        name: `anexo.${Platform.OS == "ios" ? "caf" : "3gp"}`,
+        type: `audio/${Platform.OS == "ios" ? "caf" : "3gp"}`
+      });
+
+      const res = await axios.post(`/upload/audio-${Platform.OS}`, formData);
+
+      this.setState({
+        sendingNarrativa: false,
+        anexo: res.url
+      });
+    } catch (e) {
+      debugger;
+
+      console.log(JSON.stringify(e, null, 4));
+    }
+    debugger;
+  };
+
+  handleUpdateVitimas = index => {
+    if (index === 5) {
+      this.setState({ needToRequestQtdVitimas: true });
+
+      return;
+    }
+    const qtdVitimas = index + 1;
+
+    this.setState({
+      qtdVitimas,
+      vitimas: changeSize(this.state.vitimas, qtdVitimas)
+    });
+  };
+
+  handleUpdateVeiculos = index => {
+    if (index === 5) {
+      this.setState({ needToRequestQtdVeiculos: true });
+
+      return;
+    }
+    const qtdVeiculos = index + 1;
+
+    this.setState({
+      qtdVeiculos,
+      veiculos: changeSize(this.state.veiculos, qtdVeiculos)
+    });
+  };
+
+  _maybeRenderDialogMaisQue6() {
+    const { needToRequestQtdVitimas } = this.state;
+
+    return (
+      <DialogInput
+        isDialogVisible={needToRequestQtdVitimas}
+        title={"Quantidade de Vitimas"}
+        message={"Informe a quantidade de vitimas"}
+        hintInput={"6"}
+        textInputProps={{
+          keyboardType: "number-pad"
+        }}
+        submitInput={inputText => {
+          this.setState({
+            needToRequestQtdVitimas: false,
+            qtdVitimas: +(inputText || "6"),
+            vitimas: changeSize(this.state.vitimas, +(inputText || "6"))
+          });
+        }}
+        closeDialog={() => {
+          this.setState({
+            needToRequestQtdVitimas: false,
+            qtdVitimas: null,
+            vitimas: []
+          });
+        }}
+      />
+    );
+  }
+
+  _maybeRenderDialogMaisQue6Veiculos() {
+    const { needToRequestQtdVeiculos } = this.state;
+
+    return (
+      <DialogInput
+        isDialogVisible={needToRequestQtdVeiculos}
+        title={"Quantidade de Veiculos"}
+        message={"Informe a quantidade de veiculos"}
+        hintInput={"6"}
+        textInputProps={{
+          keyboardType: "number-pad"
+        }}
+        submitInput={inputText => {
+          this.setState({
+            needToRequestQtdVeiculos: false,
+            qtdVeiculos: +(inputText || "6"),
+            veiculos: changeSize(this.state.veiculos, +(inputText || "6"))
+          });
+        }}
+        closeDialog={() => {
+          this.setState({
+            needToRequestQtdVeiculos: false,
+            qtdVeiculos: null,
+            veiculos: []
+          });
+        }}
+      />
+    );
+  }
+
+  _renderVitima = ({ item, index }) => {
+    return (
+      <ListItem
+        onPress={() =>
+          this.setState({ editingVitima: item, editingIndex: index })
+        }
+        title={item.nome || "Toque para informar o nome"}
+        leftIcon={{
+          name: item.sexo
+            ? item.sexo == "f"
+              ? "venus"
+              : "mars"
+            : "genderless",
+          color: item.sexo
+            ? item.sexo == "f"
+              ? colors.femaleColor
+              : colors.maleColor
+            : colors.neutralColor,
+          type: "font-awesome"
+        }}
+      />
+    );
+  };
+
+  _renderVeiculo = ({ item, index }) => {
+    return (
+      <ListItem
+        onPress={() =>
+          this.setState({ editingVeiculo: item, editingVeiculoIndex: index })
+        }
+        title={item.placa || "Toque para informar a Placa"}
+        subtitle={
+          item.tipo_veiculo_id
+            ? tiposVeiculos[item.tipo_veiculo_id].nome
+            : "Informe o tipo do veiculo"
+        }
+      />
+    );
+  };
+  _maybeRenderVitimas() {
+    const { qtdVitimas, temVitimas, vitimas } = this.state;
+
+    const buttons = [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      qtdVitimas > 5 ? qtdVitimas.toString() : " Mais "
+    ];
 
     if (!temVitimas) return null;
 
@@ -61,19 +344,230 @@ export default class OcorrenciaScreen extends React.Component {
       <View>
         <Text style={styles.label}> Quantidade de Vitimas </Text>
         <ButtonGroup
-          onPress={qtdVitimas => this.setState({ qtdVitimas: qtdVitimas + 1 })}
-          selectedIndex={qtdVitimas !== null ? qtdVitimas - 1 : null}
+          onPress={this.handleUpdateVitimas}
+          selectedIndex={this.indiceVitimas}
+          selectedButtonStyle={styles.selectedButtonStyle}
+          selectedTextStyle={styles.selectedButtonTextStyle}
           buttons={buttons}
         />
+
+        <Text style={styles.label}> Vitimas </Text>
+
+        <FlatList data={vitimas || []} renderItem={this._renderVitima} />
       </View>
     );
   }
 
+  _renderVeiculos() {
+    const { qtdVeiculos, veiculos } = this.state;
+
+    const buttons = [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      qtdVeiculos > 5 ? qtdVeiculos.toString() : " Mais "
+    ];
+
+    return (
+      <View>
+        <Text style={styles.label}> Quantidade de Veiculos </Text>
+        <ButtonGroup
+          onPress={this.handleUpdateVeiculos}
+          selectedIndex={this.indiceVeiculos}
+          selectedButtonStyle={styles.selectedButtonStyle}
+          selectedTextStyle={styles.selectedButtonTextStyle}
+          buttons={buttons}
+        />
+
+        <Text style={styles.label}> Veiculos </Text>
+
+        <FlatList data={veiculos || []} renderItem={this._renderVeiculo} />
+      </View>
+    );
+  }
+
+  _renderEditVitima() {
+    const buttons = [
+      {
+        element: femaleIcon
+      },
+      {
+        element: maleIcon
+      }
+    ];
+
+    return (
+      <ConfirmDialog
+        title="Editar Dados da Vitima"
+        visible={!!this.state.editingVitima}
+        onTouchOutside={() => this.setState({ editingVitima: null })}
+        positiveButton={{
+          title: "Salvar",
+          onPress: () => {
+            const { editingIndex, editingVitima } = this.state;
+            if (editingIndex < 0) {
+              this.setState({
+                vitimas: this.state.vitimas.concat(editingVitima),
+                editingVitima: null
+              });
+              return;
+            }
+
+            const vitimas = [...this.state.vitimas];
+            vitimas[editingIndex] = editingVitima;
+
+            this.setState({
+              vitimas,
+              editingVitima: null
+            });
+          }
+        }}
+      >
+        <View>
+          <Input
+            placeholder="Informe o nome da Vítima"
+            value={this.state.editingVitima && this.state.editingVitima.nome}
+            onChangeText={nome =>
+              this.setState({
+                editingVitima: {
+                  ...this.state.editingVitima,
+                  nome
+                }
+              })
+            }
+          />
+          <Text style={[styles.label, styles.center]}> Sexo da Vitima </Text>
+          <View style={styles.buttonSmall}>
+            <ButtonGroup
+              selectedButtonStyle={styles.selectedButtonSexStyle}
+              selectedTextStyle={styles.selectedButtonTextStyle}
+              onPress={index =>
+                this.setState({
+                  editingVitima: {
+                    ...this.state.editingVitima,
+                    sexo: index ? "m" : "f"
+                  }
+                })
+              }
+              selectedIndex={
+                this.state.editingVitima &&
+                (this.state.editingVitima.sexo == "m"
+                  ? 1
+                  : this.state.editingVitima.sexo == "f"
+                  ? 0
+                  : null)
+              }
+              buttons={buttons}
+            />
+          </View>
+        </View>
+      </ConfirmDialog>
+    );
+  }
+
+  _renderEditVeiculo() {
+    const buttons = [
+      {
+        element: femaleIcon
+      },
+      {
+        element: maleIcon
+      }
+    ];
+
+    return (
+      <ConfirmDialog
+        title="Editar Dados da Veiculo"
+        visible={!!this.state.editingVeiculo}
+        onTouchOutside={() => this.setState({ editingVeiculo: null })}
+        positiveButton={{
+          title: "Salvar",
+          onPress: () => {
+            const { editingVeiculoIndex, editingVeiculo } = this.state;
+            if (editingVeiculoIndex < 0) {
+              this.setState({
+                veiculos: this.state.veiculos.concat(editingVeiculo),
+                editingVeiculo: null
+              });
+              return;
+            }
+
+            const veiculos = [...this.state.veiculos];
+            veiculos[editingVeiculoIndex] = editingVeiculo;
+
+            this.setState({
+              veiculos,
+              editingVeiculo: null
+            });
+          }
+        }}
+      >
+        <View>
+          <Input
+            placeholder="Informe a placa do Veiculo"
+            value={this.state.editingVeiculo && this.state.editingVeiculo.placa}
+            onChangeText={placa =>
+              this.setState({
+                editingVeiculo: {
+                  ...this.state.editingVeiculo,
+                  placa
+                }
+              })
+            }
+          />
+          <View>
+            <Picker
+              selectedValue={
+                this.state.editingVeiculo &&
+                this.state.editingVeiculo.tipo_veiculo_id
+              }
+              onValueChange={(itemValue, itemIndex) =>
+                this.setState({
+                  editingVeiculo: {
+                    ...this.state.editingVeiculo,
+                    tipo_veiculo_id: itemValue
+                  }
+                })
+              }
+            >
+              {tiposVeiculos.map(tipo => (
+                <Picker.Item label={tipo.nome} value={tipo.id} key={tipo.id} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+      </ConfirmDialog>
+    );
+  }
+
+  handleTemVitimas = () => {
+    let { temVitimas, qtdVitimas, vitimas } = this.state;
+
+    if (!temVitimas) {
+      qtdVitimas = Math.max(1, qtdVitimas);
+    }
+
+    this.setState({
+      temVitimas: !temVitimas,
+      qtdVitimas: qtdVitimas,
+      vitimas: changeSize(vitimas, qtdVitimas)
+    });
+  };
+
   render() {
-    const { temVitimas } = this.state;
+    const { temVitimas, qtdVitimas } = this.state;
 
     return (
       <View style={styles.container}>
+        <Text>{JSON.stringify(this.state.location)}</Text>
+        {this._maybeRenderDialogMaisQue6()}
+        {this._maybeRenderDialogMaisQue6Veiculos()}
+
+        {this._renderEditVitima()}
+        {this._renderEditVeiculo()}
+
         {this._renderHeader()}
         <ScrollView
           style={styles.container}
@@ -82,11 +576,35 @@ export default class OcorrenciaScreen extends React.Component {
           <CheckBox
             checked={temVitimas}
             checkedColor={colors.dangerColor}
-            onPress={() => this.setState({ temVitimas: !temVitimas })}
+            onPress={this.handleTemVitimas}
             title="Tem vitimas?"
           />
-
           {this._maybeRenderVitimas()}
+          {this._renderVeiculos()}
+
+          <View style={{ paddingTop: 16, paddingHorizontal: 16 }}>
+            <Text style={styles.label}> Audio da Narrativa </Text>
+            <RecordSound
+              loading={this.state.sendingNarrativa}
+              text="Gravar a Narrativa"
+              onComplete={sound => this.uploadNarrativa(sound)}
+              onClear={() => this.setState({ anexo: null })}
+            />
+          </View>
+
+          <View style={{ paddingVertical: 42 }}>
+            <Button
+              icon={{ type: "font-awsome", name: "save" }}
+              title="Salvar"
+              loading={this.state.loadingLocation && !this.state.location}
+              backgroundColor={
+                this.state.loadingLocation && !this.state.location
+                  ? colors.neutralColor
+                  : colors.primaryCOlor
+              }
+              buttonStyle={{ borderRadius: 32 }}
+            />
+          </View>
         </ScrollView>
       </View>
     );
@@ -98,6 +616,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff"
   },
+  center: {
+    alignSelf: "center"
+  },
   header: {
     paddingTop: 30,
     flexDirection: "row",
@@ -107,7 +628,6 @@ const styles = StyleSheet.create({
     padding: 8
   },
   headerTileLeft: {
-    paddingRight: 16,
     paddingTop: 0
   },
 
@@ -125,7 +645,10 @@ const styles = StyleSheet.create({
   },
   label: {
     padding: 8,
-    fontSize: 14
+    paddingTop: 32,
+    fontSize: 22,
+    textAlign: "center",
+    left: -4
   },
   tileSetContainer: {
     alignItems: "stretch",
@@ -154,6 +677,16 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600"
   },
+  selectedButtonStyle: {
+    backgroundColor: colors.primaryCOlor
+  },
+  selectedButtonSexStyle: {
+    borderColor: colors.primaryCOlor,
+    borderWidth: 1
+  },
+  selectedButtonTextStyle: {
+    color: "white"
+  },
   tabBarInfoContainer: {
     position: "absolute",
     bottom: 0,
@@ -178,6 +711,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: "rgba(96,100,109, 1)",
     textAlign: "center"
+  },
+  buttonSmall: {
+    justifyContent: "center",
+    alignItems: "center",
+    width: 100,
+    alignSelf: "center"
   },
   navigationFilename: {
     marginTop: 5

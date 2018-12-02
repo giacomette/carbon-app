@@ -1,4 +1,5 @@
 import React from "react";
+import axios from "axios";
 import { Header } from "react-native-elements";
 import {
   Image,
@@ -14,6 +15,7 @@ import { WebBrowser } from "expo";
 import { MonoText } from "../components/StyledText";
 import colors from "../assets/colors";
 import Touchable from "../components/Touchable";
+import RecordSound from "../components/RecordSound";
 
 export default class OcorrenciaScreen extends React.Component {
   static navigationOptions = {
