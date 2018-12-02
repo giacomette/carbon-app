@@ -126,7 +126,8 @@ export default class OcorrenciaScreen extends React.Component {
         local_fato_id,
         anexo,
         vitimas,
-        veiculos
+        veiculos,
+        agravantes
       } = this.state;
 
       const data = {
@@ -138,7 +139,7 @@ export default class OcorrenciaScreen extends React.Component {
         causa_id: causa_id || 4,
         local_fato_id: local_fato_id || 1,
         anexos: anexo ? [anexo] : [],
-        agravantes: ["1", "2", "3"],
+        agravantes,
         vitimas: vitimas.map(x => ({ ...x, key: undefined })),
         veiculos: veiculos
           .filter(x => x.placa || x.tipo_veiculo_id)
